@@ -2,9 +2,9 @@
 # Bài tập lớn - Phát triển ứng dụng với Flutter
 
 ## Thông tin sinh viên
-- **Họ và tên**: _________
-- **MSSV**: _________
-- **Lớp**: _________
+- **Họ và tên**: Đồng Ngọc Phúc
+- **MSSV**: 2221050279  
+- **Lớp**: DCCTCLC67B
 
 ## Giới thiệu
 Đây là yêu cầu của bài tập lớn cho một trong hai học phần **Phát triển ứng dụng di động đa nền tảng 1 (mã học phần 7080325) và Phát triển ứng dụng cho thiết bị di động + BTL (mã học phần 7080115)**. Sinh viên sẽ xây dựng một ứng dụng di động hoàn chỉnh sử dụng Flutter và Dart, áp dụng các kiến thức đã học về lập trình giao diện người dùng, quản lý trạng thái, tích hợp API hoặc/và CSDL, kiểm thử tự động và CI/CD với GitHub Actions.
