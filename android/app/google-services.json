@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "689529970512",
+    "firebase_url": "https://task-manager-phuc-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "task-manager-phuc",
+    "storage_bucket": "task-manager-phuc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:689529970512:android:7596aedd57c5d77faa9655",
+        "android_client_info": {
+          "package_name": "com.example.flutter_project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCrjGRR9OxcIMLdHtxWbYf2yX3HOop47oM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
