@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 
 import 'login_page.dart';
 import 'main.dart';
+import 'models/task_model.dart';
+import 'profile_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,7 +17,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
-  final user = FirebaseAuth.instance.currentUser;
+  // Lấy user mới nhất mỗi lần build để đảm bảo hiển thị đúng thông tin
+  User? get user => FirebaseAuth.instance.currentUser;
 
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -24,6 +27,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String _searchText = '';
 
   late final TabController _tabController;
+  // Stream khởi tạo một lần để tránh flickering khi chuyển Tab
+  late final Stream<QuerySnapshot> _tasksStream;
 
   final List<String> _categories = [
     'Công việc',
@@ -46,6 +51,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(() => setState(() {}));
+    
+    // Khởi tạo Stream một lần - lấy TẤT CẢ task của user, không lọc ngày tháng
+    _tasksStream = FirebaseFirestore.instance
+        .collection('tasks')
+        .where('userId', isEqualTo: user?.uid)
+        .orderBy('dueDate', descending: false)
+        .snapshots();
   }
 
   @override
@@ -126,7 +138,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
-                  value: _selectedCategory,
+                  initialValue: _selectedCategory,
                   items: _categories
                       .map(
                         (c) => DropdownMenuItem(
@@ -177,16 +189,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   // Dialog sửa Task
-  Future<void> _showEditTaskDialog(QueryDocumentSnapshot task) async {
+  Future<void> _showEditTaskDialog(QueryDocumentSnapshot taskDoc) async {
+    // Chuyển đổi DocumentSnapshot sang TaskModel
+    final task = TaskModel.fromFirestore(taskDoc);
     final taskId = task.id;
-    final currentDone = task['isDone'] ?? false;
+    final currentDone = task.isDone;
     
     // Điền sẵn dữ liệu cũ vào các ô nhập
-    _titleController.text = task['title'] ?? '';
-    _descriptionController.text = task['description'] ?? '';
-    _selectedCategory = task['category'] ?? 'Công việc';
-    final dueTimestamp = task['dueDate'] as Timestamp?;
-    final oldDueDate = dueTimestamp?.toDate();
+    _titleController.text = task.title;
+    _descriptionController.text = task.description;
+    _selectedCategory = task.category;
+    final oldDueDate = task.dueDate;
     _selectedDueDate = oldDueDate;
 
     await showDialog(
@@ -210,7 +223,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
-                  value: _selectedCategory,
+                  initialValue: _selectedCategory,
                   items: _categories
                       .map(
                         (c) => DropdownMenuItem(
@@ -360,6 +373,154 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
+  // Hàm xây dựng Task Card (tái sử dụng cho cả unfinished và completed tasks)
+  Widget _buildTaskCard(QueryDocumentSnapshot taskDoc) {
+    // Chuyển đổi DocumentSnapshot sang TaskModel
+    final task = TaskModel.fromFirestore(taskDoc);
+    final docId = task.id;
+    final title = task.title;
+    final description = task.description;
+    final category = task.category;
+    final isDone = task.isDone;
+    final dueDate = task.dueDate;
+
+    final color = _categoryColors[category] ?? Colors.blueGrey;
+
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      elevation: 4,
+      shadowColor: Colors.black.withValues(alpha: 0.08),
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _showEditTaskDialog(taskDoc),
+        onLongPress: () => _showEditTaskDialog(taskDoc),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Checkbox(
+                    value: isDone,
+                    activeColor: color,
+                    onChanged: (_) => _toggleTask(docId, isDone),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            decoration: isDone
+                                ? TextDecoration.lineThrough
+                                : null,
+                            color: isDone
+                                ? Colors.green
+                                : Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        if (description.isNotEmpty)
+                          Text(
+                            description,
+                            style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withOpacity(0.7),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          category,
+                          style: TextStyle(
+                            color: color,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text("Xác nhận xóa"),
+                              content: const Text("Bạn có chắc muốn xóa không?"),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(context, false),
+                                  child: const Text("Hủy"),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () =>
+                                      Navigator.pop(context, true),
+                                  child: const Text("Xóa"),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirm == true) {
+                            await _deleteTask(docId);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(
+                    Icons.schedule,
+                    size: 16,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withOpacity(0.6),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    dueDate == null
+                        ? "Chưa đặt hạn"
+                        : DateFormat('dd/MM/yyyy HH:mm').format(dueDate),
+                    style: TextStyle(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withOpacity(0.7),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // Lọc theo thời gian
   bool _matchFilter(DateTime? due, int tabIndex) {
     if (tabIndex == 0) return true; // Tất cả
@@ -387,7 +548,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       length: 4,
       child: Scaffold(
         appBar: AppBar(
-          title: Text("Xin chào, ${user?.email?.split('@')[0]}"),
+          title: Text("Xin chào, ${user?.displayName ?? user?.email?.split('@')[0] ?? 'Người dùng'}"),
           actions: [
             // Nút test thông báo
             IconButton(
@@ -409,9 +570,64 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ? Icons.dark_mode
                   : Icons.light_mode),
             ),
-            IconButton(
-              onPressed: _logout,
-              icon: const Icon(Icons.logout),
+            // PopupMenuButton với menu: Thông tin cá nhân và Đăng xuất
+            PopupMenuButton<String>(
+              icon: CircleAvatar(
+                radius: 16,
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                child: Text(
+                  user?.email?.split('@')[0][0].toUpperCase() ?? 'U',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              onSelected: (value) async {
+                if (value == 'profile') {
+                  // Mở trang thông tin cá nhân và đợi người dùng quay lại
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ProfilePage(),
+                    ),
+                  );
+                  
+                  // Sau khi quay lại, reload thông tin user từ Firebase
+                  await FirebaseAuth.instance.currentUser?.reload();
+                  
+                  // Cập nhật UI để hiển thị tên mới
+                  if (mounted) {
+                    setState(() {});
+                  }
+                } else if (value == 'logout') {
+                  // Đăng xuất
+                  _logout();
+                }
+              },
+              itemBuilder: (BuildContext context) => [
+                const PopupMenuItem<String>(
+                  value: 'profile',
+                  child: Row(
+                    children: [
+                      Icon(Icons.person, size: 20),
+                      SizedBox(width: 8),
+                      Text('Thông tin cá nhân'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem<String>(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout, size: 20, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('Đăng xuất', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
           bottom: TabBar(
@@ -441,11 +657,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('tasks')
-                    .where('userId', isEqualTo: user?.uid)
-                    .orderBy('dueDate', descending: false)
-                    .snapshots(),
+                // Sử dụng Stream đã khởi tạo một lần trong initState
+                // Để tránh flickering khi chuyển Tab
+                stream: _tasksStream,
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
                     return const Center(child: Text("Có lỗi xảy ra!"));
@@ -460,6 +674,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         child: Text("Chưa có công việc nào. Thêm đi bạn!"));
                   }
 
+                  // Client-side filtering: Lọc theo search text và tab (Hôm nay/Tuần này/Tháng này)
                   final filtered = docs.where((d) {
                     final title = (d['title'] ?? '').toString();
                     final dueTs = d['dueDate'] as Timestamp?;
@@ -475,153 +690,83 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     return const Center(child: Text("Không tìm thấy kết quả."));
                   }
 
+                  // Phân loại Task: Chia thành unfinishedTasks và completedTasks
+                  final unfinishedTasks = filtered.where((task) {
+                    final isDone = task['isDone'] ?? false;
+                    return !isDone;
+                  }).toList();
+
+                  final completedTasks = filtered.where((task) {
+                    final isDone = task['isDone'] ?? false;
+                    return isDone;
+                  }).toList();
+
                   return ListView.builder(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    itemCount: filtered.length,
+                    itemCount: unfinishedTasks.length +
+                        (completedTasks.isNotEmpty ? 1 : 0) +
+                        completedTasks.length,
                     itemBuilder: (context, index) {
-                      final task = filtered[index];
-                      final docId = task.id;
-                      final title = task['title'] ?? '';
-                      final description = task['description'] ?? '';
-                      final category = task['category'] ?? 'Khác';
-                      final isDone = task['isDone'] ?? false;
-                      final dueDate =
-                          (task['dueDate'] as Timestamp?)?.toDate();
+                      // Hiển thị unfinishedTasks trước
+                      if (index < unfinishedTasks.length) {
+                        final task = unfinishedTasks[index];
+                        return _buildTaskCard(task);
+                      }
 
-                      final color =
-                          _categoryColors[category] ?? Colors.blueGrey;
-
-                      return Card(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        elevation: 4,
-                        shadowColor: Colors.black.withValues(alpha: 0.08),
-                        margin: const EdgeInsets.only(bottom: 12),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(16),
-                          onTap: () => _showEditTaskDialog(task),
-                          onLongPress: () => _showEditTaskDialog(task),
-                          child: Padding(
-                            padding: const EdgeInsets.all(16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Checkbox(
-                                      value: isDone,
-                                      activeColor: color,
-                                      onChanged: (_) =>
-                                          _toggleTask(docId, isDone),
-                                    ),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            title,
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              decoration: isDone
-                                                  ? TextDecoration.lineThrough
-                                                  : null,
-                                              color: isDone
-                                                  ? Colors.green
-                                                  : Colors.black,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 6),
-                                          if (description.isNotEmpty)
-                                            Text(
-                                              description,
-                                              style: TextStyle(
-                                                color: Colors.grey.shade700,
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                    Column(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 10, vertical: 6),
-                                          decoration: BoxDecoration(
-                                            color: color.withValues(alpha: 0.12),
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                          ),
-                                          child: Text(
-                                            category,
-                                            style: TextStyle(
-                                              color: color,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.delete,
-                                              color: Colors.red),
-                                          onPressed: () async {
-                                            final confirm =
-                                                await showDialog<bool>(
-                                              context: context,
-                                              builder: (context) =>
-                                                  AlertDialog(
-                                                title:
-                                                    const Text("Xác nhận xóa"),
-                                                content: const Text(
-                                                    "Bạn có chắc muốn xóa không?"),
-                                                actions: [
-                                                  TextButton(
-                                                    onPressed: () =>
-                                                        Navigator.pop(
-                                                            context, false),
-                                                    child: const Text("Hủy"),
-                                                  ),
-                                                  ElevatedButton(
-                                                    onPressed: () =>
-                                                        Navigator.pop(
-                                                            context, true),
-                                                    child: const Text("Xóa"),
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                            if (confirm == true) {
-                                              await _deleteTask(docId);
-                                            }
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  ],
+                      // Hiển thị tiêu đề "Đã hoàn thành" nếu có completedTasks
+                      if (index == unfinishedTasks.length &&
+                          completedTasks.isNotEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 16, horizontal: 4),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Divider(
+                                  thickness: 1,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withOpacity(0.3),
                                 ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Icon(Icons.schedule,
-                                        size: 16, color: Colors.grey.shade600),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      dueDate == null
-                                          ? "Chưa đặt hạn"
-                                          : DateFormat('dd/MM/yyyy HH:mm')
-                                              .format(dueDate),
-                                      style: TextStyle(
-                                          color: Colors.grey.shade700),
-                                    ),
-                                  ],
+                              ),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12),
+                                child: Text(
+                                  "Đã hoàn thành (${completedTasks.length})",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withOpacity(0.6),
+                                  ),
                                 ),
-                              ],
-                            ),
+                              ),
+                              Expanded(
+                                child: Divider(
+                                  thickness: 1,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withOpacity(0.3),
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
+                        );
+                      }
+
+                      // Hiển thị completedTasks với opacity 0.7
+                      final completedIndex =
+                          index - unfinishedTasks.length - 1;
+                      final task = completedTasks[completedIndex];
+                      return Opacity(
+                        opacity: 0.7,
+                        child: _buildTaskCard(task),
                       );
                     },
                   );

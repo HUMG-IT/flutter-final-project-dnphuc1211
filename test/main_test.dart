@@ -1,12 +1,25 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_project/main.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_project/main.dart'; 
 
 void main() {
-  testWidgets('MainApp displays Hello World', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MainApp());
+  testWidgets('Kiểm tra App khởi động thành công', (WidgetTester tester) async {
+    // Tạo plugin giả để truyền vào Service
+    final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
-    // Verify that our app displays "Hello World!".
-    expect(find.text('Hello World!'), findsOneWidget);
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => ThemeProvider()),
+          // Truyền plugin vào đây để khớp với constructor
+          Provider(create: (_) => NotificationService(flutterLocalNotificationsPlugin)),
+        ],
+        child: const MyApp(),
+      ),
+    );
+
+    // Kiểm tra xem widget MyApp có xuất hiện không
+    expect(find.byType(MyApp), findsOneWidget);
   });
 }

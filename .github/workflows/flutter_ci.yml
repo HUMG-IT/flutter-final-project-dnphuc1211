@@ -1,0 +1,33 @@
+name: Flutter CI
+
+# Chạy khi có push lên nhánh main
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Bước 1: Checkout code từ repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Bước 2: Cài đặt Flutter
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.24.4'
+          cache: true
+
+      # Bước 3: Cài đặt dependencies (flutter pub get)
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Bước 4: Chạy tests
+      - name: Run tests
+        run: flutter test
+
