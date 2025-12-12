@@ -1,118 +1,131 @@
-  import 'dart:io';
+import 'dart:io';
 
-  import 'package:firebase_core/firebase_core.dart';
-  import 'package:flutter/material.dart';
-  import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-  import 'package:provider/provider.dart';
-  import 'package:timezone/data/latest_all.dart' as tz;
-  import 'package:timezone/timezone.dart' as tz;
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:provider/provider.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
-  import 'firebase_options.dart';
-  import 'login_page.dart';
+import 'firebase_options.dart';
+import 'login_page.dart';
 
-  // Provider đổi theme
-  class ThemeProvider extends ChangeNotifier {
-    ThemeMode themeMode = ThemeMode.light;
+// Provider đổi theme
+class ThemeProvider extends ChangeNotifier {
+  ThemeMode themeMode = ThemeMode.light;
 
-    void toggleTheme() {
-      themeMode =
-          themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
-      notifyListeners();
+  void toggleTheme() {
+    themeMode =
+        themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+    notifyListeners();
+  }
+}
+
+// Service cấu hình và hẹn giờ thông báo cục bộ
+class NotificationService {
+  final FlutterLocalNotificationsPlugin plugin;
+  static const String _channelId = 'task_channel';
+  static const String _channelName = 'Task Reminders';
+  static const String _channelDescription = 'Nhắc nhở công việc đến hạn';
+
+  NotificationService(this.plugin);
+
+  Future<void> init() async {
+    if (Platform.isAndroid) {
+      final androidImplementation = plugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+
+      if (androidImplementation != null) {
+        await androidImplementation.createNotificationChannel(
+          const AndroidNotificationChannel(
+            _channelId,
+            _channelName,
+            description: _channelDescription,
+            importance: Importance.max,
+            playSound: true,
+            enableVibration: true,
+            showBadge: true,
+          ),
+        );
+      }
+    }
+
+    const androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const iosSettings = DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
+    const initSettings =
+        InitializationSettings(android: androidSettings, iOS: iosSettings);
+    await plugin.initialize(initSettings);
+
+    if (Platform.isAndroid) {
+      final androidImplementation = plugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      if (androidImplementation != null) {
+        await androidImplementation.requestNotificationsPermission();
+      }
     }
   }
 
-  // Service cấu hình và hẹn giờ thông báo cục bộ
-  class NotificationService {
-    final FlutterLocalNotificationsPlugin plugin;
-    static const String _channelId = 'task_channel';
-    static const String _channelName = 'Task Reminders';
-    static const String _channelDescription = 'Nhắc nhở công việc đến hạn';
+  Future<void> scheduleNotification({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime dueDate,
+  }) async {
+    if (dueDate.isBefore(DateTime.now())) {
+      return;
+    }
 
-    NotificationService(this.plugin);
+    final scheduledDate = tz.TZDateTime.from(dueDate, tz.local);
 
-    Future<void> init() async {
-      if (Platform.isAndroid) {
-        final androidImplementation = plugin
-            .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin>();
+    const androidDetails = AndroidNotificationDetails(
+      _channelId,
+      _channelName,
+      channelDescription: _channelDescription,
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+      showWhen: true,
+    );
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
 
-        if (androidImplementation != null) {
-          await androidImplementation.createNotificationChannel(
-            const AndroidNotificationChannel(
-              _channelId,
-              _channelName,
-              description: _channelDescription,
-              importance: Importance.max,
-              playSound: true,
-              enableVibration: true,
-              showBadge: true,
-            ),
-          );
-        }
-      }
-
-      const androidSettings =
-          AndroidInitializationSettings('@mipmap/ic_launcher');
-      const iosSettings = DarwinInitializationSettings(
-        requestAlertPermission: true,
-        requestBadgePermission: true,
-        requestSoundPermission: true,
-      );
-      const initSettings =
-          InitializationSettings(android: androidSettings, iOS: iosSettings);
-      await plugin.initialize(initSettings);
-
-      if (Platform.isAndroid) {
-        final androidImplementation = plugin
-            .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin>();
-        if (androidImplementation != null) {
-          await androidImplementation.requestNotificationsPermission();
-        }
+    if (Platform.isAndroid) {
+      final androidImplementation = plugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      if (androidImplementation != null) {
+        await androidImplementation.requestExactAlarmsPermission();
       }
     }
 
-    Future<void> scheduleNotification({
-      required int id,
-      required String title,
-      required String body,
-      required DateTime dueDate,
-    }) async {
-      if (dueDate.isBefore(DateTime.now())) {
-        return;
-      }
-
-      final scheduledDate = tz.TZDateTime.from(dueDate, tz.local);
-
-      const androidDetails = AndroidNotificationDetails(
-        _channelId,
-        _channelName,
-        channelDescription: _channelDescription,
-        importance: Importance.max,
-        priority: Priority.high,
-        playSound: true,
-        enableVibration: true,
-        showWhen: true,
+    try {
+      await plugin.zonedSchedule(
+        id,
+        title,
+        body,
+        scheduledDate,
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidAllowWhileIdle: true,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
       );
-      const iosDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      );
-      const details = NotificationDetails(
-        android: androidDetails,
-        iOS: iosDetails,
-      );
-
-      if (Platform.isAndroid) {
-        final androidImplementation = plugin
-            .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin>();
-        if (androidImplementation != null) {
-          await androidImplementation.requestExactAlarmsPermission();
-        }
-      }
-
+    } catch (e) {
       try {
         await plugin.zonedSchedule(
           id,
@@ -120,172 +133,159 @@
           body,
           scheduledDate,
           details,
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
           androidAllowWhileIdle: true,
           uiLocalNotificationDateInterpretation:
               UILocalNotificationDateInterpretation.absoluteTime,
         );
-      } catch (e) {
-        try {
-          await plugin.zonedSchedule(
-            id,
-            title,
-            body,
-            scheduledDate,
-            details,
-            androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-            androidAllowWhileIdle: true,
-            uiLocalNotificationDateInterpretation:
-                UILocalNotificationDateInterpretation.absoluteTime,
-          );
-        } catch (fallbackError) {
-          await plugin.zonedSchedule(
-            id,
-            title,
-            body,
-            scheduledDate,
-            details,
-            androidScheduleMode: AndroidScheduleMode.inexact,
-            uiLocalNotificationDateInterpretation:
-                UILocalNotificationDateInterpretation.absoluteTime,
-          );
-        }
+      } catch (fallbackError) {
+        await plugin.zonedSchedule(
+          id,
+          title,
+          body,
+          scheduledDate,
+          details,
+          androidScheduleMode: AndroidScheduleMode.inexact,
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
+        );
       }
     }
-
-    Future<void> scheduleDueDateNotification({
-      required int id,
-      required String title,
-      required String body,
-      required DateTime dueDate,
-    }) async {
-      await scheduleNotification(
-        id: id,
-        title: title,
-        body: body,
-        dueDate: dueDate,
-      );
-    }
-
-    Future<void> showInstantNotification({
-      required int id,
-      required String title,
-      required String body,
-    }) async {
-      const androidDetails = AndroidNotificationDetails(
-        _channelId,
-        _channelName,
-        channelDescription: _channelDescription,
-        importance: Importance.max,
-        priority: Priority.high,
-        playSound: true,
-        enableVibration: true,
-        showWhen: true,
-      );
-      const iosDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      );
-      const details = NotificationDetails(
-        android: androidDetails,
-        iOS: iosDetails,
-      );
-
-      await plugin.show(id, title, body, details);
-    }
   }
 
-  Future<void> main() async {
-    WidgetsFlutterBinding.ensureInitialized();
-    tz.initializeTimeZones();
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
+  Future<void> scheduleDueDateNotification({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime dueDate,
+  }) async {
+    await scheduleNotification(
+      id: id,
+      title: title,
+      body: body,
+      dueDate: dueDate,
+    );
+  }
+
+  Future<void> showInstantNotification({
+    required int id,
+    required String title,
+    required String body,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      _channelId,
+      _channelName,
+      channelDescription: _channelDescription,
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      enableVibration: true,
+      showWhen: true,
+    );
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
     );
 
-    final notificationsPlugin = FlutterLocalNotificationsPlugin();
-    final notificationService = NotificationService(notificationsPlugin);
-    await notificationService.init();
+    await plugin.show(id, title, body, details);
+  }
+}
 
-    runApp(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider(create: (_) => ThemeProvider()),
-          Provider<NotificationService>.value(value: notificationService),
-        ],
-        child: const MyApp(),
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  tz.initializeTimeZones();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  final notificationsPlugin = FlutterLocalNotificationsPlugin();
+  final notificationService = NotificationService(notificationsPlugin);
+  await notificationService.init();
+
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        Provider<NotificationService>.value(value: notificationService),
+      ],
+      child: const MyApp(),
+    ),
+  );
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = context.watch<ThemeProvider>();
+    return MaterialApp(
+      themeMode: themeProvider.themeMode,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+        useMaterial3: true,
       ),
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.indigo,
+          brightness: Brightness.dark,
+        ),
+        useMaterial3: true,
+
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.grey[900],
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey[700]!),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey[700]!),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.indigo.shade400, width: 2),
+          ),
+          labelStyle: TextStyle(color: Colors.grey[300]),
+          hintStyle: TextStyle(color: Colors.grey[500]),
+        ),
+
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(color: Colors.white),
+          bodyMedium: TextStyle(color: Colors.white70),
+          bodySmall: TextStyle(color: Colors.white60),
+          titleLarge: TextStyle(color: Colors.white),
+          titleMedium: TextStyle(color: Colors.white),
+          titleSmall: TextStyle(color: Colors.white70),
+          headlineLarge: TextStyle(color: Colors.white),
+          headlineMedium: TextStyle(color: Colors.white),
+          headlineSmall: TextStyle(color: Colors.white),
+        ),
+
+        appBarTheme: const AppBarTheme(
+          foregroundColor: Colors.white,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
+
+        // CardTheme (sửa để tương thích Flutter 3.24.x)
+        cardTheme: CardTheme(
+          color: Colors.grey[850],
+          surfaceTintColor: Colors.transparent,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      ),
+      home: const LoginPage(),
     );
   }
-
-  class MyApp extends StatelessWidget {
-    const MyApp({super.key});
-
-    @override
-    Widget build(BuildContext context) {
-      final themeProvider = context.watch<ThemeProvider>();
-      return MaterialApp(
-        themeMode: themeProvider.themeMode,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
-          useMaterial3: true,
-        ),
-        darkTheme: ThemeData(
-          brightness: Brightness.dark,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.indigo,
-            brightness: Brightness.dark,
-          ),
-          useMaterial3: true,
-
-          inputDecorationTheme: InputDecorationTheme(
-            filled: true,
-            fillColor: Colors.grey[900],
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[700]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.grey[700]!),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.indigo.shade400, width: 2),
-            ),
-            labelStyle: TextStyle(color: Colors.grey[300]),
-            hintStyle: TextStyle(color: Colors.grey[500]),
-          ),
-
-          textTheme: const TextTheme(
-            bodyLarge: TextStyle(color: Colors.white),
-            bodyMedium: TextStyle(color: Colors.white70),
-            bodySmall: TextStyle(color: Colors.white60),
-            titleLarge: TextStyle(color: Colors.white),
-            titleMedium: TextStyle(color: Colors.white),
-            titleSmall: TextStyle(color: Colors.white70),
-            headlineLarge: TextStyle(color: Colors.white),
-            headlineMedium: TextStyle(color: Colors.white),
-            headlineSmall: TextStyle(color: Colors.white),
-          ),
-
-          appBarTheme: const AppBarTheme(
-            foregroundColor: Colors.white,
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-          ),
-
-          // CardTheme
-          cardTheme: CardThemeData(
-            color: Colors.grey[850],
-            surfaceTintColor: Colors.transparent,
-            margin: EdgeInsets.zero,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-        ),
-        home: const LoginPage(),
-      );
-    }
-  }
+}
