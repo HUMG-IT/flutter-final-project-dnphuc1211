@@ -31,15 +31,12 @@ class NotificationService {
   NotificationService(this.plugin);
 
   Future<void> init() async {
-    // Tạo Android Notification Channel với importance.max và priority.high
-    // Để thông báo có thể bật sáng màn hình và kêu to
     if (Platform.isAndroid) {
       final androidImplementation = plugin
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
-      
+
       if (androidImplementation != null) {
-        // Tạo channel với cấu hình cao nhất
         await androidImplementation.createNotificationChannel(
           const AndroidNotificationChannel(
             _channelId,
@@ -54,7 +51,6 @@ class NotificationService {
       }
     }
 
-    // Khởi tạo plugin
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
@@ -66,7 +62,6 @@ class NotificationService {
         InitializationSettings(android: androidSettings, iOS: iosSettings);
     await plugin.initialize(initSettings);
 
-    // Yêu cầu quyền thông báo cho Android 13+ (API 33+)
     if (Platform.isAndroid) {
       final androidImplementation = plugin
           .resolvePlatformSpecificImplementation<
@@ -77,22 +72,18 @@ class NotificationService {
     }
   }
 
-  // Hàm hẹn giờ thông báo với logic "chắc chắn chạy"
   Future<void> scheduleNotification({
     required int id,
     required String title,
     required String body,
     required DateTime dueDate,
   }) async {
-    // Kiểm tra nếu quá hạn thì bỏ qua
     if (dueDate.isBefore(DateTime.now())) {
       return;
     }
 
-    // Chuyển đổi dueDate sang múi giờ địa phương
     final scheduledDate = tz.TZDateTime.from(dueDate, tz.local);
 
-    // Cấu hình notification details với channel đã tạo
     const androidDetails = AndroidNotificationDetails(
       _channelId,
       _channelName,
@@ -113,7 +104,6 @@ class NotificationService {
       iOS: iosDetails,
     );
 
-    // Xin quyền exact alarms trước khi hẹn giờ
     if (Platform.isAndroid) {
       final androidImplementation = plugin
           .resolvePlatformSpecificImplementation<
@@ -123,7 +113,6 @@ class NotificationService {
       }
     }
 
-    // Thử dùng exact alarm trước (chính xác tuyệt đối)
     try {
       await plugin.zonedSchedule(
         id,
@@ -137,8 +126,6 @@ class NotificationService {
             UILocalNotificationDateInterpretation.absoluteTime,
       );
     } catch (e) {
-      // Nếu bị lỗi (thiếu quyền hoặc lỗi khác), fallback ngay lập tức
-      // sang chế độ inexact (không cần quyền đặc biệt, sai số 1-2 phút nhưng chắc chắn sẽ hiện)
       try {
         await plugin.zonedSchedule(
           id,
@@ -152,7 +139,6 @@ class NotificationService {
               UILocalNotificationDateInterpretation.absoluteTime,
         );
       } catch (fallbackError) {
-        // Nếu cả inexact cũng lỗi, thử dùng chế độ mặc định (chắc chắn nhất)
         await plugin.zonedSchedule(
           id,
           title,
@@ -167,7 +153,6 @@ class NotificationService {
     }
   }
 
-  // Hàm hẹn giờ thông báo theo dueDate (giữ lại để tương thích với code cũ)
   Future<void> scheduleDueDateNotification({
     required int id,
     required String title,
@@ -182,7 +167,6 @@ class NotificationService {
     );
   }
 
-  // Hàm test: Hiển thị thông báo ngay lập tức để kiểm tra
   Future<void> showInstantNotification({
     required int id,
     required String title,
@@ -219,7 +203,6 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Khởi tạo notification
   final notificationsPlugin = FlutterLocalNotificationsPlugin();
   final notificationService = NotificationService(notificationsPlugin);
   await notificationService.init();
@@ -254,7 +237,7 @@ class MyApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
         useMaterial3: true,
-        // InputDecorationTheme: Ô nhập liệu trong Dark Mode
+
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: Colors.grey[900],
@@ -273,7 +256,7 @@ class MyApp extends StatelessWidget {
           labelStyle: TextStyle(color: Colors.grey[300]),
           hintStyle: TextStyle(color: Colors.grey[500]),
         ),
-        // TextTheme: Màu chữ tự động sáng trong Dark Mode
+
         textTheme: const TextTheme(
           bodyLarge: TextStyle(color: Colors.white),
           bodyMedium: TextStyle(color: Colors.white70),
@@ -285,16 +268,18 @@ class MyApp extends StatelessWidget {
           headlineMedium: TextStyle(color: Colors.white),
           headlineSmall: TextStyle(color: Colors.white),
         ),
-        // AppBarTheme: Màu chữ/icon tự động trắng trong Dark Mode
+
         appBarTheme: const AppBarTheme(
           foregroundColor: Colors.white,
           backgroundColor: Colors.transparent,
           elevation: 0,
         ),
-        // CardTheme: Màu nền Card tối trong Dark Mode
+
+        // CardTheme dùng chuẩn Material 3
         cardTheme: CardThemeData(
           color: Colors.grey[850],
-          elevation: 2,
+          surfaceTintColor: Colors.transparent,
+          margin: EdgeInsets.zero,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
