@@ -17,6 +17,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
+  // Lấy user mới nhất mỗi lần build để đảm bảo hiển thị đúng thông tin
   User? get user => FirebaseAuth.instance.currentUser;
 
   final _titleController = TextEditingController();
@@ -26,6 +27,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String _searchText = '';
 
   late final TabController _tabController;
+  // Stream khởi tạo một lần để tránh flickering khi chuyển Tab
   late final Stream<QuerySnapshot> _tasksStream;
 
   final List<String> _categories = [
@@ -49,7 +51,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(() => setState(() {}));
-
+    
+    // Khởi tạo Stream một lần - lấy TẤT CẢ task của user, không lọc ngày tháng
     _tasksStream = FirebaseFirestore.instance
         .collection('tasks')
         .where('userId', isEqualTo: user?.uid)
@@ -65,6 +68,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     super.dispose();
   }
 
+  // Hàm Đăng xuất
   Future<void> _logout() async {
     await FirebaseAuth.instance.signOut();
     if (mounted) {
@@ -76,6 +80,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
+  // Hàm chọn ngày giờ hết hạn
   Future<void> _pickDueDateTime() async {
     final now = DateTime.now();
     final pickedDate = await showDatePicker(
@@ -92,6 +97,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       initialTime: TimeOfDay.fromDateTime(_selectedDueDate ?? now),
     );
     if (pickedTime == null) return;
+    
 
     setState(() {
       _selectedDueDate = DateTime(
@@ -104,6 +110,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     });
   }
 
+  // Dialog thêm Task mới
   Future<void> _openTaskDialog() async {
     _titleController.clear();
     _descriptionController.clear();
@@ -130,10 +137,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   decoration: const InputDecoration(labelText: "Nội dung"),
                 ),
                 const SizedBox(height: 10),
-
-                /// 🔥 Sửa initialValue → value
                 DropdownButtonFormField<String>(
-                  value: _selectedCategory,
+                  initialValue: _selectedCategory,
                   items: _categories
                       .map(
                         (c) => DropdownMenuItem(
@@ -147,7 +152,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   },
                   decoration: const InputDecoration(labelText: "Danh mục"),
                 ),
-
                 const SizedBox(height: 10),
                 Row(
                   children: [
@@ -184,11 +188,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  // Dialog sửa Task
   Future<void> _showEditTaskDialog(QueryDocumentSnapshot taskDoc) async {
+    // Chuyển đổi DocumentSnapshot sang TaskModel
     final task = TaskModel.fromFirestore(taskDoc);
     final taskId = task.id;
     final currentDone = task.isDone;
-
+    
+    // Điền sẵn dữ liệu cũ vào các ô nhập
     _titleController.text = task.title;
     _descriptionController.text = task.description;
     _selectedCategory = task.category;
@@ -215,10 +222,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   decoration: const InputDecoration(labelText: "Nội dung"),
                 ),
                 const SizedBox(height: 10),
-
-                /// 🔥 Sửa chỗ thứ 2 — initialValue → value
                 DropdownButtonFormField<String>(
-                  value: _selectedCategory,
+                  initialValue: _selectedCategory,
                   items: _categories
                       .map(
                         (c) => DropdownMenuItem(
@@ -232,7 +237,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   },
                   decoration: const InputDecoration(labelText: "Danh mục"),
                 ),
-
                 const SizedBox(height: 10),
                 Row(
                   children: [
@@ -259,11 +263,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
             ElevatedButton(
               onPressed: () async {
+                // Kiểm tra xem dueDate có thay đổi không
                 final newDueDate = _selectedDueDate;
                 final dueDateChanged = oldDueDate != newDueDate;
-
-                await _saveTask(taskId, currentDone,
-                    dueDateChanged: dueDateChanged);
+                
+                await _saveTask(taskId, currentDone, dueDateChanged: dueDateChanged);
               },
               child: const Text("Cập nhật"),
             ),
@@ -273,6 +277,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  // Lưu Task mới hoặc cập nhật
   Future<void> _saveTask(
     String? docId,
     bool currentIsDone, {
@@ -301,12 +306,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     try {
       String id = docId ?? '';
       if (docId == null) {
+        // Thêm mới
         final ref = await FirebaseFirestore.instance.collection('tasks').add({
           ...data,
           'createdAt': FieldValue.serverTimestamp(),
         });
         id = ref.id;
       } else {
+        // Cập nhật
         await FirebaseFirestore.instance.collection('tasks').doc(docId).update({
           ...data,
         });
@@ -314,7 +321,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
 
       if (!mounted) return;
-
+      
+      // Đặt lịch thông báo nếu có hạn
+      // Nếu là cập nhật và dueDate thay đổi, hoặc là thêm mới, thì cập nhật notification
       if (_selectedDueDate != null && (docId == null || dueDateChanged)) {
         final notificationService = context.read<NotificationService>();
         await notificationService.scheduleDueDateNotification(
@@ -339,7 +348,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       );
     }
   }
-
+  
   Future<void> _deleteTask(String docId) async {
     try {
       await FirebaseFirestore.instance.collection('tasks').doc(docId).delete();
@@ -364,7 +373,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
   }
 
+  // Hàm xây dựng Task Card (tái sử dụng cho cả unfinished và completed tasks)
   Widget _buildTaskCard(QueryDocumentSnapshot taskDoc) {
+    // Chuyển đổi DocumentSnapshot sang TaskModel
     final task = TaskModel.fromFirestore(taskDoc);
     final docId = task.id;
     final title = task.title;
@@ -380,7 +391,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         borderRadius: BorderRadius.circular(16),
       ),
       elevation: 4,
-      shadowColor: Colors.black.withAlpha(20),
+      shadowColor: Colors.black.withValues(alpha: 0.08),
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -408,8 +419,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            decoration:
-                                isDone ? TextDecoration.lineThrough : null,
+                            decoration: isDone
+                                ? TextDecoration.lineThrough
+                                : null,
                             color: isDone
                                 ? Colors.green
                                 : Theme.of(context).colorScheme.onSurface,
@@ -435,7 +447,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: color.withAlpha(30),
+                          color: color.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
@@ -509,10 +521,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  // Lọc theo thời gian
   bool _matchFilter(DateTime? due, int tabIndex) {
-    if (tabIndex == 0) return true;
+    if (tabIndex == 0) return true; // Tất cả
     if (due == null) return false;
-
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
@@ -536,9 +548,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       length: 4,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(
-              "Xin chào, ${user?.displayName ?? user?.email?.split('@')[0] ?? 'Người dùng'}"),
+          title: Text("Xin chào, ${user?.displayName ?? user?.email?.split('@')[0] ?? 'Người dùng'}"),
           actions: [
+            // Nút test thông báo
             IconButton(
               tooltip: "Test thông báo",
               onPressed: () async {
@@ -558,6 +570,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ? Icons.dark_mode
                   : Icons.light_mode),
             ),
+            // PopupMenuButton với menu: Thông tin cá nhân và Đăng xuất
             PopupMenuButton<String>(
               icon: CircleAvatar(
                 radius: 16,
@@ -573,19 +586,23 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ),
               onSelected: (value) async {
                 if (value == 'profile') {
+                  // Mở trang thông tin cá nhân và đợi người dùng quay lại
                   await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => const ProfilePage(),
                     ),
                   );
-
+                  
+                  // Sau khi quay lại, reload thông tin user từ Firebase
                   await FirebaseAuth.instance.currentUser?.reload();
-
+                  
+                  // Cập nhật UI để hiển thị tên mới
                   if (mounted) {
                     setState(() {});
                   }
                 } else if (value == 'logout') {
+                  // Đăng xuất
                   _logout();
                 }
               },
@@ -613,78 +630,144 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ],
             ),
           ],
+          bottom: TabBar(
+            controller: _tabController,
+            tabs: const [
+              Tab(text: "Tất cả"),
+              Tab(text: "Hôm nay"),
+              Tab(text: "Tuần này"),
+              Tab(text: "Tháng này"),
+            ],
+          ),
         ),
         body: Column(
           children: [
-            const SizedBox(height: 10),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.all(12.0),
               child: TextField(
                 decoration: InputDecoration(
+                  hintText: "Tìm kiếm theo tiêu đề...",
                   prefixIcon: const Icon(Icons.search),
-                  hintText: "Tìm kiếm...",
-                  filled: true,
-                  fillColor: Theme.of(context)
-                      .colorScheme
-                      .surfaceContainerHighest
-                      .withOpacity(0.8),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                onChanged: (value) {
-                  setState(() => _searchText = value.toLowerCase());
-                },
+                onChanged: (val) => setState(() => _searchText = val),
               ),
-            ),
-            const SizedBox(height: 10),
-            TabBar(
-              controller: _tabController,
-              tabs: const [
-                Tab(text: "Tất cả"),
-                Tab(text: "Hôm nay"),
-                Tab(text: "Tuần này"),
-                Tab(text: "Tháng này"),
-              ],
             ),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
+                // Sử dụng Stream đã khởi tạo một lần trong initState
+                // Để tránh flickering khi chuyển Tab
                 stream: _tasksStream,
                 builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return const Center(child: Text("Có lỗi xảy ra!"));
+                  }
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
-                  if (!snapshot.hasData) {
-                    return const Center(child: Text("Không có dữ liệu"));
+
+                  final docs = snapshot.data?.docs ?? [];
+                  if (docs.isEmpty) {
+                    return const Center(
+                        child: Text("Chưa có công việc nào. Thêm đi bạn!"));
                   }
 
-                  final tabIndex = _tabController.index;
-
-                  final tasks = snapshot.data!.docs.where((doc) {
-                    final task = TaskModel.fromFirestore(doc);
-
-                    final matchesSearch = task.title
-                            .toLowerCase()
-                            .contains(_searchText) ||
-                        task.description
-                            .toLowerCase()
-                            .contains(_searchText);
-
-                    final matchesFilter =
-                        _matchFilter(task.dueDate, tabIndex);
-
-                    return matchesSearch && matchesFilter;
+                  // Client-side filtering: Lọc theo search text và tab (Hôm nay/Tuần này/Tháng này)
+                  final filtered = docs.where((d) {
+                    final title = (d['title'] ?? '').toString();
+                    final dueTs = d['dueDate'] as Timestamp?;
+                    final dueDate = dueTs?.toDate();
+                    final matchSearch =
+                        title.toLowerCase().contains(_searchText.toLowerCase());
+                    final matchTime =
+                        _matchFilter(dueDate, _tabController.index);
+                    return matchSearch && matchTime;
                   }).toList();
 
-                  if (tasks.isEmpty) {
-                    return const Center(child: Text("Không có công việc nào"));
+                  if (filtered.isEmpty) {
+                    return const Center(child: Text("Không tìm thấy kết quả."));
                   }
 
+                  // Phân loại Task: Chia thành unfinishedTasks và completedTasks
+                  final unfinishedTasks = filtered.where((task) {
+                    final isDone = task['isDone'] ?? false;
+                    return !isDone;
+                  }).toList();
+
+                  final completedTasks = filtered.where((task) {
+                    final isDone = task['isDone'] ?? false;
+                    return isDone;
+                  }).toList();
+
                   return ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: tasks.length,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    itemCount: unfinishedTasks.length +
+                        (completedTasks.isNotEmpty ? 1 : 0) +
+                        completedTasks.length,
                     itemBuilder: (context, index) {
-                      return _buildTaskCard(tasks[index]);
+                      // Hiển thị unfinishedTasks trước
+                      if (index < unfinishedTasks.length) {
+                        final task = unfinishedTasks[index];
+                        return _buildTaskCard(task);
+                      }
+
+                      // Hiển thị tiêu đề "Đã hoàn thành" nếu có completedTasks
+                      if (index == unfinishedTasks.length &&
+                          completedTasks.isNotEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 16, horizontal: 4),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Divider(
+                                  thickness: 1,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withOpacity(0.3),
+                                ),
+                              ),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12),
+                                child: Text(
+                                  "Đã hoàn thành (${completedTasks.length})",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withOpacity(0.6),
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: Divider(
+                                  thickness: 1,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface
+                                      .withOpacity(0.3),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      // Hiển thị completedTasks với opacity 0.7
+                      final completedIndex =
+                          index - unfinishedTasks.length - 1;
+                      final task = completedTasks[completedIndex];
+                      return Opacity(
+                        opacity: 0.7,
+                        child: _buildTaskCard(task),
+                      );
                     },
                   );
                 },
@@ -692,9 +775,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ],
         ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: _openTaskDialog,
-          child: const Icon(Icons.add),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => _openTaskDialog(),
+          icon: const Icon(Icons.add),
+          label: const Text("Thêm"),
         ),
       ),
     );
