@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_project/services/theme_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_project/login_page.dart';
-import 'package:flutter_project/main.dart'; 
+import 'package:flutter_project/pages/login_page.dart';
 
 void main() {
   Widget createLoginScreen() {
