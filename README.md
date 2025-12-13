@@ -93,6 +93,7 @@ Dự án áp dụng kiến trúc **Clean Architecture** (tách biệt UI, Servic
     ```
 ## Video demo:
 Link: https://youtu.be/W-c72NNtb2A
+
 Link dự phòng: https://drive.google.com/file/d/1jQaCtDvy2FT_hjuiz56_Iw8lf_c4c0LD/view?usp=sharing
 
 ## Bảng đánh giá kết quả
