@@ -1,5 +1,5 @@
 
-# Bài tập lớn - Phát triển ứng dụng Task Mangager với Flutter
+# Bài tập lớn - Phát triển ứng dụng Task Manager với Flutter
 
 ## Thông tin sinh viên
 - **Họ và tên**: Đồng Ngọc Phúc
