@@ -21,6 +21,30 @@ Dự án áp dụng kiến trúc **Clean Architecture** (tách biệt UI, Servic
     * `flutter_test`: Kiểm thử Unit và Widget.
     * **GitHub Actions:** Tự động hóa quy trình Build và Test (Continuous Integration).
 
+## Cấu trúc thư mục dự án
+```text
+├── .github/
+│   └── workflows/
+│       └── flutter_ci.yml      # Cấu hình GitHub Actions (CI/CD)
+├── android/                    # Mã nguồn native Android (Cấu hình Gradle, Permissions)
+├── ios/                        # Mã nguồn native iOS
+├── lib/                        # Mã nguồn chính của ứng dụng (Dart)
+│   ├── models/                 # Chứa các lớp dữ liệu (Data Models)
+│   │   └── task_model.dart     # Model định nghĩa đối tượng Công việc
+│   ├── pages/                  # Chứa các màn hình giao diện (UI Screens)
+│   │   ├── home_page.dart      # Màn hình chính (Danh sách task, CRUD, Filter)
+│   │   ├── login_page.dart     # Màn hình Đăng nhập & Đăng ký
+│   │   └── profile_page.dart   # Màn hình Thông tin cá nhân & Đổi mật khẩu
+│   ├── services/               # Chứa các dịch vụ và logic nghiệp vụ
+│   │   ├── notification_service.dart # Xử lý thông báo cục bộ (Local Notifications)
+│   │   └── theme_provider.dart       # Quản lý trạng thái giao diện (Dark/Light Mode)
+│   ├── firebase_options.dart   # File cấu hình tự động của Firebase
+│   └── main.dart               # Hàm main, khởi tạo App và các Provider
+├── test/                       # Thư mục chứa các bài kiểm thử (Testing)
+├── pubspec.yaml                # Quản lý các thư viện phụ thuộc (Dependencies)
+└── README.md                   # Tài liệu báo cáo và hướng dẫn cài đặt
+```
+
 ## Các chức năng của ứng dụng
 ### 1. **Xác thực người dùng:**
 * Đăng ký, Đăng nhập (Email/Password).
@@ -38,7 +62,7 @@ Dự án áp dụng kiến trúc **Clean Architecture** (tách biệt UI, Servic
 * **Giao diện:** Chế độ Tối/Sáng (Dark Mode/Light Mode) tùy chỉnh.
 * **Cá nhân hóa:** Cập nhật Tên hiển thị, Đổi mật khẩu (có xác thực lại).
 * **Đồng bộ hóa:** Dữ liệu được lưu trên Firebase gắn liền với tài khoản người dùng, dù có cài lại ứng dụng hay đổi thiết bị thì dữ liệu vẫn đồng bộ theo tài khoản.
-
+```
 
 ### 4. Kiểm thử và CI/CD
 * **Unit Test:** Kiểm tra tính đúng đắn của `TaskModel` (fromMap, toMap).
@@ -68,8 +92,6 @@ Dự án áp dụng kiến trúc **Clean Architecture** (tách biệt UI, Servic
     flutter test
     ```
 
-## Video Demo
-Link: 
 ## Bảng đánh giá kết quả
 
 Dựa trên các tiêu chí chấm điểm của bài tập lớn, em xin tự đánh giá mức độ hoàn thiện của dự án như sau:
@@ -83,9 +105,7 @@ Dựa trên các tiêu chí chấm điểm của bài tập lớn, em xin tự �
 | **9/10** | **Kiểm thử & Giao diện hoàn thiện**<br>Unit/Widget Test, Auth, Profile, UI hoàn chỉnh. | - **Testing:** Đã viết Unit Test cho `TaskModel` và Widget Test cho màn hình Login.<br>- **Auth:** Đầy đủ Đăng ký, Đăng nhập, Đăng xuất, Tự động đăng nhập.<br>- **Profile:** Cập nhật thông tin cá nhân, Đổi mật khẩu (có Re-auth).<br>- **UI:** Giao diện đẹp, hỗ trợ **Dark Mode / Light Mode**. | Đạt |
 | **10/10** | **Tối ưu hóa & Nâng cao**<br>Tính năng nâng cao, Code sạch, CI/CD ổn định. | - **Nâng cao:** Tìm kiếm (Search), Lọc theo thời gian (Hôm nay/Tuần này), Sắp xếp task hoàn thành xuống dưới.<br>- **Thông báo:** Tích hợp **Local Notifications** nhắc nhở lịch hẹn.<br>- **Code:** Cấu trúc Clean Architecture (tách biệt Models, Services, Pages).<br>- **CI/CD:** Quy trình tự động hóa hoạt động ổn định. | Đạt |
 
-
-## Tự đánh giá điểm: 10/10
-Ứng dụng đã hoàn thiện vượt mức yêu cầu cơ bản, đảm bảo tính ổn định cao thông qua quy trình kiểm thử tự động và CI/CD. Giao diện người dùng được tối ưu hóa tốt cho trải nghiệm mượt mà.
+Nhận xét: Ứng dụng đã hoàn thiện vượt mức yêu cầu cơ bản, đảm bảo tính ổn định cao thông qua quy trình kiểm thử tự động và CI/CD. Giao diện người dùng được tối ưu hóa tốt cho trải nghiệm mượt mà.
 
 ## Lời cảm ơn
 Em xin gửi lời cảm ơn chân thành đến thầy Trần Chung Chuyên đã tận tình giảng dạy và hướng dẫn em trong suốt quá trình học tập môn Phát triển ứng dụng di động đa nền tảng 1.
